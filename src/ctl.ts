@@ -10,7 +10,7 @@ const USAGE = `cursor-presence <command>
   status              Show what Discord currently sees
   pause | resume      Hide or show your presence
   client-id [id]      Set the Discord Application ID (asks for it if omitted)
-  hide <project>      Show a project as "a private project"
+  hide <project>      Also hide file names and code size in this project
   unhide <project>
   autostart on|off    Start with Windows and wait for Cursor
   start | stop | restart`;
@@ -137,7 +137,9 @@ async function main(): Promise<void> {
       const others = loadConfig().hiddenProjects.filter((p) => p.toLowerCase() !== arg.toLowerCase());
       saveConfig({ hiddenProjects: cmd === "hide" ? [...others, arg] : others });
       await send("refresh");
-      console.log(cmd === "hide" ? `"${arg}" now shows as a private project.` : `"${arg}" is visible again.`);
+      console.log(
+        cmd === "hide" ? `File names and code size are now hidden in "${arg}".` : `"${arg}" shows file names and code size again.`,
+      );
       return;
     }
     case "start":

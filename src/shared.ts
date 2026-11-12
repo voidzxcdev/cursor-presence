@@ -45,7 +45,6 @@ export interface Config {
   clientId: string;
   assetBaseUrl: string;
   paused: boolean;
-  showProjectName: boolean;
   showCodeSize: boolean;
   showAgent: boolean;
   showAgentFile: boolean;
@@ -61,7 +60,6 @@ export const DEFAULT_CONFIG: Config = {
   clientId: "",
   assetBaseUrl: "https://raw.githubusercontent.com/voidzxcdev/cursor-presence/main/assets/png/",
   paused: false,
-  showProjectName: true,
   showCodeSize: true,
   showAgent: true,
   showAgentFile: true,

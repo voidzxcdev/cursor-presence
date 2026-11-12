@@ -23,7 +23,8 @@ let current = {};
 try {
   current = JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
 } catch {}
-const config = { ...DEFAULT_CONFIG, ...current };
+const known = Object.fromEntries(Object.entries(current).filter(([key]) => key in DEFAULT_CONFIG));
+const config = { ...DEFAULT_CONFIG, ...known };
 await writeFile(CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`);
 
 await writeHooksConfig(hooks);

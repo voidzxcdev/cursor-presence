@@ -22,9 +22,6 @@ const PHASE_TEXT: Record<StatusKey, string> = {
   error: "Hit an error",
   idle: "Idle",
 };
-
-const ROTATE_MS = 20_000;
-
 export interface Snapshot {
   config: Config;
   session: SessionRecord | null;
@@ -50,23 +47,14 @@ function image(config: Config, size: "lg" | "sm", key: string): string {
 
 const join = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join(" · ");
 
-/** "cursor-presence" -> "Cursor Presence", "myAPI_server" -> "My API Server". */
-function prettyProject(name: string): string {
-  return name
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .split(/[-_.\s]+/)
-    .filter(Boolean)
-    .map((w) => (w === w.toUpperCase() ? w : w[0].toUpperCase() + w.slice(1)))
-    .join(" ");
-}
-
-/** Builds what Discord shows. Everything here has already passed the privacy rules. */
+/**
+ * Builds what Discord shows. Everything here has already passed the privacy rules.
+ * Project and folder names are never part of it; the root is only used to count code.
+ */
 export function buildActivity(s: Snapshot): SetActivity | null {
   const { config, session, workspace, now } = s;
   const root = projectRoot(s);
-  const project = root ? baseName(root) : null;
-  const hidden = !!project && isHiddenProject(project, config);
-  const projectLabel = project && config.showProjectName ? (hidden ? "Private project" : prettyProject(project)) : null;
+  const hidden = !!root && isHiddenProject(baseName(root), config);
   const size = config.showCodeSize && !hidden && s.codeChars ? formatChars(s.codeChars) : null;
 
   const base: SetActivity = {
@@ -88,14 +76,10 @@ export function buildActivity(s: Snapshot): SetActivity | null {
     const lang = logoFile && !isProtectedFile(logoFile, config) ? languageForFile(logoFile) : undefined;
     const target = rawFile ? (isSecret ? "a protected file" : rawFile) : phase === "reading" || phase === "editing" ? "code" : null;
 
-    const withModel = join(model?.label, projectLabel);
-    const withSize = join(projectLabel, size);
-    const showSize = !!size && Math.floor(now / ROTATE_MS) % 2 === 1;
-
     a = {
       ...base,
-      details: join(PHASE_TEXT[phase] + (target ? ` ${target}` : "")),
-      state: (showSize ? withSize : withModel) || undefined,
+      details: PHASE_TEXT[phase] + (target ? ` ${target}` : ""),
+      state: join(model?.label, size) || undefined,
       largeImageKey: image(config, "lg", lang?.key ?? phase),
       largeImageText: lang?.name ?? PHASE_TEXT[phase],
       smallImageKey: image(config, "sm", model?.provider ?? "cursor"),
@@ -107,7 +91,7 @@ export function buildActivity(s: Snapshot): SetActivity | null {
     a = {
       ...base,
       details: `Writing ${lang?.name ?? "code"}`,
-      state: join(projectLabel, size) || undefined,
+      state: size ? `${size} of code` : undefined,
       largeImageKey: image(config, "lg", lang?.key ?? "cursor"),
       largeImageText: lang?.name ?? "Cursor",
       smallImageKey: lang ? image(config, "sm", "cursor") : undefined,
