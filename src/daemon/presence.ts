@@ -69,7 +69,8 @@ export function buildActivity(s: Snapshot): SetActivity | null {
     const at = new Date(session.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     a = {
       ...base,
-      details: `Turn Finished at ${at}`,
+      details: `Last turn finished at ${at}`,
+      state: size ? `Last Codebase contains ${size.replace(/chars$/, "Chars")}` : undefined,
       largeImageKey: image(config, "lg", "cursor"),
       largeImageText: "Cursor",
       startTimestamp: s.since || undefined,
