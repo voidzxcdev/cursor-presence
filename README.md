@@ -18,7 +18,7 @@ Discord Rich Presence for Cursor that follows the agent, not your files.
 |---|---|
 | The agent is working | What it's doing, the file's language logo, the model, and the size of the codebase |
 | You're typing with Tab | The language you're writing and the size of the codebase |
-| A turn just finished | The Cursor logo and the time it finished, for 3 minutes |
+| A turn just finished | The Cursor logo, when it finished and the size of the codebase, for 3 minutes |
 | Nothing is happening | The Cursor logo, alone |
 
 The timer counts from when Cursor launched and never resets between cards. The presence starts with Cursor and clears itself within seconds of Cursor closing.
