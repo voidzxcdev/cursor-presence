@@ -12,7 +12,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "assets": "node scripts/build-assets.mjs && node scripts/build-cards.mjs",
+    "assets": "node scripts/build-assets.mjs && node scripts/build-cards.mjs && node scripts/build-strip.mjs",
     "install-presence": "npm run typecheck && npm run build && node dist/setup.cjs install",
     "uninstall-presence": "npm run build && node dist/setup.cjs uninstall",
     "ctl": "node dist/ctl.cjs"
