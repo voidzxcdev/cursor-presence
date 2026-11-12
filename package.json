@@ -1,0 +1,30 @@
+{
+  "name": "cursor-presence",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal Discord Rich Presence for Cursor, driven by agent hooks, with nothing confidential.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/voidzxcdev/cursor-presence"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "assets": "node scripts/build-assets.mjs",
+    "install-presence": "npm run typecheck && npm run build && node scripts/install.mjs",
+    "uninstall-presence": "node scripts/uninstall.mjs",
+    "ctl": "node dist/ctl.cjs"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.25.0",
+    "simple-icons": "^16.0.0",
+    "typescript": "^5.9.0"
+  },
+  "dependencies": {
+    "@xhayper/discord-rpc": "^1.3.0"
+  }
+}
