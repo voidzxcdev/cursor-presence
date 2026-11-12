@@ -2,7 +2,7 @@
   "name": "cursor-presence",
   "version": "0.1.0",
   "private": true,
-  "description": "Minimal Discord Rich Presence for Cursor, driven by agent hooks, with nothing confidential.",
+  "description": "Discord Rich Presence for Cursor that follows the agent, not your files.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -12,7 +12,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "assets": "node scripts/build-assets.mjs",
+    "assets": "node scripts/build-assets.mjs && node scripts/build-cards.mjs",
     "install-presence": "npm run typecheck && npm run build && node scripts/install.mjs",
     "uninstall-presence": "node scripts/uninstall.mjs",
     "ctl": "node dist/ctl.cjs"
