@@ -1,10 +1,12 @@
 import { readFileSync } from "node:fs";
 import { mkdir, rename, writeFile } from "node:fs/promises";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import type { StatusKey } from "./catalog";
 
 export const HOME_DIR = path.join(os.homedir(), ".cursor-presence");
+export const APP_DIR = path.join(HOME_DIR, "app");
 export const STATE_DIR = path.join(HOME_DIR, "state");
 export const CONFIG_PATH = path.join(HOME_DIR, "config.json");
 export const STATUS_PATH = path.join(HOME_DIR, "status.json");
@@ -129,4 +131,17 @@ export function normalizePath(p: string): string {
 
 export function baseName(p: string): string {
   return p.split(/[\\/]/).filter(Boolean).pop() ?? p;
+}
+
+/** Sends one line to the running companion; resolves false if none is listening. */
+export function sendToDaemon(message: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = net.connect(PIPE_PATH);
+    socket.setTimeout(800, () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.on("connect", () => socket.end(`${message}\n`, () => resolve(true)));
+    socket.on("error", () => resolve(false));
+  });
 }

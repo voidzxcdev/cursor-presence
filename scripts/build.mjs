@@ -4,6 +4,7 @@ const entries = {
   daemon: "src/daemon/index.ts",
   hook: "src/hook.ts",
   ctl: "src/ctl.ts",
+  setup: "src/setup.ts",
 };
 
 await Promise.all(

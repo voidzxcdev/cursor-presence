@@ -6,6 +6,8 @@
 
 Discord Rich Presence for Cursor that follows the agent.
 
+[voidzxcdev.github.io/cursor-presence](https://voidzxcdev.github.io/cursor-presence)
+
 <img src="assets/cards.png" width="640" alt="Three Discord activity cards: editing a TypeScript file with Claude, thinking with GPT, and a finished turn">
 
 </div>
@@ -29,35 +31,38 @@ Project and folder names, paths, prompts, commands, file contents, and your acco
 
 ## Setup
 
-Needs Cursor, the Discord desktop app, and Node.js 20 or newer.
-
 1. Create an application at the [Discord Developer Portal](https://discord.com/developers/applications) and name it **Cursor**. Copy its **Application ID** from General Information. This is not a bot token, and none is needed.
-2. Install:
+2. Run in PowerShell, and paste the ID when asked:
 
-   ```sh
-   git clone https://github.com/voidzxcdev/cursor-presence
-   cd cursor-presence
-   npm install
-   npm run install-presence
+   ```powershell
+   irm voidzxcdev.github.io/cursor-presence/install.ps1 | iex
    ```
 
-3. Paste the Application ID when asked:
+It needs Cursor, the Discord desktop app and Node.js 20 or newer; Node is installed with winget if it's missing. The installer adds its hooks to `~/.cursor/hooks.json` next to any you already have, and Cursor starts the presence the next time you open a project or a chat. Run the same command again to update.
 
-   ```sh
-   npm run ctl -- client-id
-   ```
+<details>
+<summary>From source</summary>
 
-That's it. The installer adds its hooks to `~/.cursor/hooks.json` next to any you already have, and Cursor starts the presence the next time you open a project or a chat.
+```sh
+git clone https://github.com/voidzxcdev/cursor-presence
+cd cursor-presence
+npm install
+npm run install-presence
+```
+
+</details>
 
 ## Commands
 
-```sh
-npm run ctl -- status            # what Discord currently sees
-npm run ctl -- pause             # clear the presence until resumed
-npm run ctl -- resume
-npm run ctl -- hide <folder>     # also hide file names and code size in this project
-npm run ctl -- unhide <folder>
-npm run ctl -- restart
+```powershell
+$ctl = "$HOME\.cursor-presence\app\ctl.cjs"
+node $ctl status            # what Discord currently sees
+node $ctl pause             # clear the presence until resumed
+node $ctl resume
+node $ctl client-id         # change the Application ID
+node $ctl hide <folder>     # also hide file names and code size in this project
+node $ctl unhide <folder>
+node $ctl restart
 ```
 
 ## Settings
@@ -85,8 +90,8 @@ Built and tested on Windows. The macOS and Linux paths are in place but untested
 
 ## Uninstall
 
-```sh
-npm run uninstall-presence
+```powershell
+node "$HOME\.cursor-presence\app\setup.cjs" uninstall
 ```
 
 Removes the hooks, the companion and its state. Your `config.json` stays.

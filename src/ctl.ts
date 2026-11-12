@@ -1,9 +1,8 @@
 import { spawn } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
-import net from "node:net";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
-import { CONFIG_PATH, DEFAULT_CONFIG, PIPE_PATH, STATUS_PATH, loadConfig, readJson } from "./shared";
+import { CONFIG_PATH, DEFAULT_CONFIG, STATUS_PATH, loadConfig, readJson, sendToDaemon as send } from "./shared";
 
 const USAGE = `cursor-presence <command>
 
@@ -53,18 +52,6 @@ async function waitForDiscord(): Promise<void> {
     }
   }
   console.log("Saved. Waiting for the Discord desktop app; it will connect once Discord is running.");
-}
-
-function send(message: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const socket = net.connect(PIPE_PATH);
-    socket.setTimeout(800, () => {
-      socket.destroy();
-      resolve(false);
-    });
-    socket.on("connect", () => socket.end(`${message}\n`, () => resolve(true)));
-    socket.on("error", () => resolve(false));
-  });
 }
 
 function saveConfig(patch: Record<string, unknown>): void {

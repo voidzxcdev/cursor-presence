@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cursor-presence</title>
+<meta name="description" content="Discord Rich Presence for Cursor that follows the agent, not your files.">
+<meta property="og:title" content="cursor-presence">
+<meta property="og:description" content="Discord Rich Presence for Cursor that follows the agent, not your files.">
+<meta property="og:image" content="https://raw.githubusercontent.com/voidzxcdev/cursor-presence/main/assets/cards.png">
+<link rel="icon" href="https://raw.githubusercontent.com/voidzxcdev/cursor-presence/main/assets/png/sm/cursor.png">
+<style>
+  :root { color-scheme: dark; --bg: #0a0a0c; --line: #232328; --text: #f4f4f5; --dim: #8b8b94; }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    min-height: 100vh; display: grid; place-items: center; padding: 64px 20px;
+    background: var(--bg); color: var(--text);
+    font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { width: 100%; max-width: 560px; }
+  .logo { width: 56px; height: 56px; display: block; }
+  h1 { margin-top: 20px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  .lede { color: var(--dim); }
+  .cards { width: 100%; margin: 40px 0; display: block; }
+  .cmd {
+    display: flex; align-items: center; gap: 12px;
+    border: 1px solid var(--line); border-radius: 12px; padding: 6px 6px 6px 16px;
+  }
+  .cmd code {
+    flex: 1; overflow-x: auto; white-space: nowrap; scrollbar-width: none;
+    font: 13.5px/1 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  .cmd code::-webkit-scrollbar { display: none; }
+  .cmd code span { color: var(--dim); }
+  button {
+    flex: none; cursor: pointer; border: 0; border-radius: 8px; padding: 8px 12px;
+    background: #1c1c21; color: var(--text); font: 500 13px/1 inherit;
+  }
+  button:hover { background: #26262c; }
+  ol { margin-top: 28px; padding-left: 20px; color: var(--dim); }
+  li + li { margin-top: 6px; }
+  li::marker { font-variant-numeric: tabular-nums; }
+  a { color: var(--text); text-decoration-color: #3a3a42; text-underline-offset: 3px; }
+  a:hover { text-decoration-color: var(--text); }
+  footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--line); display: flex; gap: 20px; font-size: 13px; color: var(--dim); }
+  footer a { color: var(--dim); }
+</style>
+</head>
+<body>
+<main>
+  <img class="logo" src="https://raw.githubusercontent.com/voidzxcdev/cursor-presence/main/assets/png/lg/cursor.png" alt="">
+  <h1>cursor-presence</h1>
+  <p class="lede">Discord Rich Presence for Cursor that follows the agent, not your files.</p>
+
+  <img class="cards" src="https://raw.githubusercontent.com/voidzxcdev/cursor-presence/main/assets/cards.png" alt="Discord cards: editing a TypeScript file with Claude, thinking with GPT, and a finished turn">
+
+  <div class="cmd">
+    <code id="cmd"><span>PS&gt;</span> irm voidzxcdev.github.io/cursor-presence/install.ps1 | iex</code>
+    <button id="copy" type="button">Copy</button>
+  </div>
+
+  <ol>
+    <li>Create an app named Cursor in the <a href="https://discord.com/developers/applications">Discord Developer Portal</a> and copy its Application ID.</li>
+    <li>Run the command in PowerShell.</li>
+    <li>Paste the ID when asked. Cursor starts the presence from then on.</li>
+  </ol>
+
+  <footer>
+    <a href="https://github.com/voidzxcdev/cursor-presence">GitHub</a>
+    <a href="https://github.com/voidzxcdev/cursor-presence#what-it-never-shows">Privacy</a>
+    <a href="https://github.com/voidzxcdev/cursor-presence#uninstall">Uninstall</a>
+    <span style="margin-left:auto">MIT</span>
+  </footer>
+</main>
+<script>
+  const button = document.getElementById("copy");
+  button.addEventListener("click", async () => {
+    await navigator.clipboard.writeText("irm voidzxcdev.github.io/cursor-presence/install.ps1 | iex");
+    button.textContent = "Copied";
+    setTimeout(() => (button.textContent = "Copy"), 1500);
+  });
+</script>
+</body>
+</html>
