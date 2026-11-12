@@ -120,6 +120,15 @@ export async function writeJsonAtomic(file: string, data: unknown): Promise<void
   }
 }
 
+/** The ADE reports roots like "/C:/Users/..." or "file:///c%3A/..."; turn them into real paths. */
+export function normalizePath(p: string): string {
+  let s = p.replace(/^file:\/\//i, "");
+  try {
+    s = decodeURIComponent(s);
+  } catch {}
+  return /^\/[a-zA-Z]:([\\/]|$)/.test(s) ? s.slice(1) : s;
+}
+
 export function baseName(p: string): string {
   return p.split(/[\\/]/).filter(Boolean).pop() ?? p;
 }

@@ -8,6 +8,7 @@ import {
   STATE_DIR,
   WORKSPACE_PATH,
   baseName,
+  normalizePath,
   readJson,
   writeJsonAtomic,
   type SessionRecord,
@@ -57,8 +58,10 @@ function toolFile(input: HookInput): string | null {
   return p ? baseName(p) : null;
 }
 
-const firstRoot = (input: HookInput): string | null =>
-  Array.isArray(input.workspace_roots) ? str(input.workspace_roots[0]) : null;
+function firstRoot(input: HookInput): string | null {
+  const root = Array.isArray(input.workspace_roots) ? str(input.workspace_roots[0]) : null;
+  return root ? normalizePath(root) : null;
+}
 
 async function recordWorkspace(input: HookInput, file: string | null): Promise<void> {
   const root = firstRoot(input) ?? str(process.env.CURSOR_PROJECT_DIR);

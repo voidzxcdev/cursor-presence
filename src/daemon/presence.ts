@@ -1,6 +1,6 @@
 import type { SetActivity } from "@xhayper/discord-rpc";
 import { languageForFile, type StatusKey } from "../catalog";
-import { baseName, type Config, type SessionRecord, type WorkspaceRecord } from "../shared";
+import { baseName, normalizePath, type Config, type SessionRecord, type WorkspaceRecord } from "../shared";
 import { formatChars } from "./codeCounter";
 import { describeModel } from "./models";
 import { clean, isHiddenProject, isProtectedFile } from "./privacy";
@@ -35,7 +35,8 @@ export interface Snapshot {
 }
 
 export function projectRoot(s: Snapshot): string | null {
-  return s.session?.root ?? s.workspace?.root ?? null;
+  const root = s.session?.root ?? s.workspace?.root ?? null;
+  return root ? normalizePath(root) : null;
 }
 
 function image(config: Config, size: "lg" | "sm", key: string): string {
