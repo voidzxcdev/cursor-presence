@@ -48,13 +48,23 @@ function image(config: Config, size: "lg" | "sm", key: string): string {
 
 const join = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join(" · ");
 
+/** "cursor-presence" -> "Cursor Presence", "myAPI_server" -> "My API Server". */
+function prettyProject(name: string): string {
+  return name
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .split(/[-_.\s]+/)
+    .filter(Boolean)
+    .map((w) => (w === w.toUpperCase() ? w : w[0].toUpperCase() + w.slice(1)))
+    .join(" ");
+}
+
 /** Builds what Discord shows. Everything here has already passed the privacy rules. */
 export function buildActivity(s: Snapshot): SetActivity | null {
   const { config, session, workspace, now } = s;
   const root = projectRoot(s);
   const project = root ? baseName(root) : null;
   const hidden = !!project && isHiddenProject(project, config);
-  const projectLabel = project && config.showProjectName ? (hidden ? "a private project" : project) : null;
+  const projectLabel = project && config.showProjectName ? (hidden ? "Private project" : prettyProject(project)) : null;
   const size = config.showCodeSize && !hidden && s.codeChars ? formatChars(s.codeChars) : null;
 
   const base: SetActivity = {
@@ -62,21 +72,12 @@ export function buildActivity(s: Snapshot): SetActivity | null {
     type: 0,
     statusDisplayType: config.memberListShows === "activity" ? 2 : 0,
   };
+  const recent =
+    workspace?.file && now - workspace.fileAt < config.idleMinutes * 60_000 ? workspace.file : null;
 
   let a: SetActivity;
 
-  if (s.idle) {
-    if (config.idleAction === "clear") return null;
-    a = {
-      ...base,
-      details: "Idle",
-      state: projectLabel ?? undefined,
-      largeImageKey: image(config, "lg", "idle"),
-      largeImageText: "Idle",
-      smallImageKey: image(config, "sm", "cursor"),
-      smallImageText: "Cursor",
-    };
-  } else if (session && config.showAgent) {
+  if (session && config.showAgent && !s.idle) {
     const phase: StatusKey = session.phase === "starting" ? "working" : session.phase;
     const model = config.showModel ? describeModel(session.model, session.modelId) : null;
     const rawFile = config.showAgentFile && !hidden && (phase === "reading" || phase === "editing") ? session.file : null;
@@ -98,19 +99,22 @@ export function buildActivity(s: Snapshot): SetActivity | null {
       smallImageText: model ? `Agent · ${model.label}` : "Cursor Agent",
       startTimestamp: session.startedAt,
     };
-  } else {
-    const recent = workspace?.file && now - workspace.fileAt < config.idleMinutes * 60_000 ? workspace.file : null;
-    const lang = recent && !isProtectedFile(recent, config) ? languageForFile(recent) : undefined;
+  } else if (recent && !s.idle) {
+    const lang = !isProtectedFile(recent, config) ? languageForFile(recent) : undefined;
     a = {
       ...base,
-      details: recent ? `Writing ${lang?.name ?? "code"}` : projectLabel ? `Working on ${projectLabel}` : "In Cursor",
-      state: (recent ? join(projectLabel, size) : size) || undefined,
+      details: `Writing ${lang?.name ?? "code"}`,
+      state: join(projectLabel, size) || undefined,
       largeImageKey: image(config, "lg", lang?.key ?? "cursor"),
       largeImageText: lang?.name ?? "Cursor",
       smallImageKey: lang ? image(config, "sm", "cursor") : undefined,
       smallImageText: lang ? "Cursor" : undefined,
       startTimestamp: s.since || undefined,
     };
+  } else {
+    if (s.idle && config.idleAction === "clear") return null;
+    // Nothing happening: the logo alone.
+    return { ...base, largeImageKey: image(config, "lg", "cursor") };
   }
 
   for (const key of ["details", "state", "largeImageText", "smallImageText"] as const) {
