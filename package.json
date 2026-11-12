@@ -2,7 +2,7 @@
   "name": "cursor-presence",
   "version": "0.1.0",
   "private": true,
-  "description": "Discord Rich Presence for Cursor that follows the agent, not your files.",
+  "description": "Discord Rich Presence for Cursor that follows the agent.",
   "license": "MIT",
   "repository": {
     "type": "git",
