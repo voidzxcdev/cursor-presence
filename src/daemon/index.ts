@@ -14,7 +14,7 @@ import {
   type WorkspaceRecord,
 } from "../shared";
 import { CodeCounter } from "./codeCounter";
-import { isCursorRunning } from "./cursorWatch";
+import { cursorLaunchedAt, isCursorRunning } from "./cursorWatch";
 import { DiscordLink } from "./discord";
 import { log } from "./log";
 import { buildActivity, projectRoot, type Snapshot } from "./presence";
@@ -36,10 +36,11 @@ const counter = new CodeCounter();
 let lastNudge = process.argv.includes("--from-hook") ? Date.now() : 0;
 let refreshTimer: NodeJS.Timeout | null = null;
 let recountTimer: NodeJS.Timeout | null = null;
-/** null until the first check, so a companion started mid-session doesn't treat Cursor as just opened. */
 let cursorRunning: boolean | null = null;
-let cursorOpenedAt = 0;
+/** When Cursor itself launched; every card counts from here so the timer never resets mid-session. */
+let cursorLaunched = 0;
 let cursorMisses = 0;
+let lastAgentFile: { session: string; file: string } | null = null;
 let dormant = true;
 let activeSince = 0;
 let lastStatus = "";
@@ -103,9 +104,10 @@ async function refresh(): Promise<void> {
 
   const sessions = readSessions(now);
   const saved = readJson<WorkspaceRecord>(WORKSPACE_PATH);
-  // A project remembered from before Cursor was last reopened is not what's open now.
-  const workspace = saved && saved.updatedAt >= cursorOpenedAt ? saved : null;
+  // A project remembered from before Cursor was last launched is not what's open now.
+  const workspace = saved && saved.updatedAt >= cursorLaunched ? saved : null;
   const session = pickSession(sessions, now);
+  if (session?.file) lastAgentFile = { session: session.id, file: session.file };
   const lastActivity = Math.max(workspace?.updatedAt ?? 0, sessions[0]?.updatedAt ?? 0, activeSince);
   const busy = !!session && !TERMINAL.has(session.phase);
 
@@ -115,7 +117,8 @@ async function refresh(): Promise<void> {
     workspace,
     codeChars: null,
     idle: !busy && now - lastActivity > config.idleMinutes * 60_000,
-    since: Math.max(cursorOpenedAt, workspace?.openedAt ?? 0) || activeSince,
+    since: cursorLaunched || activeSince,
+    lastAgentFile: session && lastAgentFile?.session === session.id ? lastAgentFile.file : null,
     now,
   };
   const root = projectRoot(snapshot);
@@ -185,12 +188,13 @@ async function checkCursor(): Promise<void> {
   const running = await isCursorRunning();
   if (running) {
     cursorMisses = 0;
-    if (cursorRunning === false) cursorOpenedAt = Date.now();
-    if (!cursorRunning) log("Cursor is running");
+    if (!cursorLaunched) cursorLaunched = (await cursorLaunchedAt()) ?? Date.now();
+    if (!cursorRunning) log(`Cursor is running (launched ${new Date(cursorLaunched).toISOString()})`);
     cursorRunning = true;
   } else if (cursorRunning !== false && ++cursorMisses >= 2) {
     if (cursorRunning) log("Cursor closed");
     cursorRunning = false;
+    cursorLaunched = 0;
   }
   updateMode();
   setTimeout(() => void checkCursor(), dormant ? CURSOR_CHECK_DORMANT_MS : CURSOR_CHECK_ACTIVE_MS);

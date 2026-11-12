@@ -31,8 +31,10 @@ export interface Snapshot {
   workspace: WorkspaceRecord | null;
   codeChars: number | null;
   idle: boolean;
-  /** When the current Cursor session began, for the elapsed timer outside agent runs. */
+  /** When Cursor launched; the one start time every card shares. */
   since: number;
+  /** Last file the current agent run touched, so its logo stays put between steps. */
+  lastAgentFile: string | null;
   now: number;
 }
 
@@ -82,7 +84,8 @@ export function buildActivity(s: Snapshot): SetActivity | null {
     const model = config.showModel ? describeModel(session.model, session.modelId) : null;
     const rawFile = config.showAgentFile && !hidden && (phase === "reading" || phase === "editing") ? session.file : null;
     const isSecret = !!rawFile && isProtectedFile(rawFile, config);
-    const lang = rawFile && !isSecret ? languageForFile(rawFile) : undefined;
+    const logoFile = hidden ? null : rawFile ?? s.lastAgentFile;
+    const lang = logoFile && !isProtectedFile(logoFile, config) ? languageForFile(logoFile) : undefined;
     const target = rawFile ? (isSecret ? "a protected file" : rawFile) : phase === "reading" || phase === "editing" ? "code" : null;
 
     const withModel = join(model?.label, projectLabel);
@@ -97,7 +100,7 @@ export function buildActivity(s: Snapshot): SetActivity | null {
       largeImageText: lang?.name ?? PHASE_TEXT[phase],
       smallImageKey: image(config, "sm", model?.provider ?? "cursor"),
       smallImageText: model ? `Agent · ${model.label}` : "Cursor Agent",
-      startTimestamp: session.startedAt,
+      startTimestamp: s.since || undefined,
     };
   } else if (recent && !s.idle) {
     const lang = !isProtectedFile(recent, config) ? languageForFile(recent) : undefined;
@@ -113,8 +116,8 @@ export function buildActivity(s: Snapshot): SetActivity | null {
     };
   } else {
     if (s.idle && config.idleAction === "clear") return null;
-    // Nothing happening: the logo alone.
-    return { ...base, largeImageKey: image(config, "lg", "cursor") };
+    // Nothing happening: the logo alone, still counting time in Cursor.
+    return { ...base, largeImageKey: image(config, "lg", "cursor"), startTimestamp: s.since || undefined };
   }
 
   for (const key of ["details", "state", "largeImageText", "smallImageText"] as const) {
