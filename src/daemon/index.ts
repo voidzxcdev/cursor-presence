@@ -21,7 +21,7 @@ import { buildActivity, projectRoot, type Snapshot } from "./presence";
 
 const TICK_MS = 5_000;
 const AGENT_STALE_MS = 3 * 60_000;
-const FINISHED_SHOW_MS = 45_000;
+const FINISHED_SHOW_MS = 3 * 60_000;
 const SESSION_TTL_MS = 12 * 60 * 60_000;
 const RECOUNT_MS = 10 * 60_000;
 /** Lives exactly as long as Cursor: two missed checks in a row and it clears Discord and exits. */

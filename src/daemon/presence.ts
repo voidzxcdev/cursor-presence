@@ -65,7 +65,16 @@ export function buildActivity(s: Snapshot): SetActivity | null {
 
   let a: SetActivity;
 
-  if (session && config.showAgent && !s.idle) {
+  if (session && config.showAgent && !s.idle && session.phase === "done") {
+    const at = new Date(session.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    a = {
+      ...base,
+      details: `Turn Finished at ${at}`,
+      largeImageKey: image(config, "lg", "cursor"),
+      largeImageText: "Cursor",
+      startTimestamp: s.since || undefined,
+    };
+  } else if (session && config.showAgent && !s.idle) {
     const phase: StatusKey = session.phase === "starting" ? "working" : session.phase;
     const model = config.showModel ? describeModel(session.model, session.modelId) : null;
     const rawFile = config.showAgentFile && !hidden && (phase === "reading" || phase === "editing") ? session.file : null;
