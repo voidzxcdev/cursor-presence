@@ -30,6 +30,9 @@ const CURSOR_CHECK_DORMANT_MS = 5_000;
 const KEEPALIVE_MS = 5 * 60_000;
 
 const TERMINAL = new Set(["done", "stopped", "error"]);
+/** Minimum time an action stays on the card before a passing "thinking" replaces it. */
+const DWELL_MS = 2_500;
+const BRIEF = new Set(["thinking", "responding", "starting"]);
 
 const discord = new DiscordLink();
 const counter = new CodeCounter();
@@ -41,6 +44,7 @@ let cursorRunning: boolean | null = null;
 let cursorLaunched = 0;
 let cursorMisses = 0;
 let lastAgentFile: { session: string; file: string } | null = null;
+let shown: { id: string; phase: SessionRecord["phase"]; file: string | null; at: number } | null = null;
 let dormant = true;
 let activeSince = 0;
 let lastStatus = "";
@@ -84,6 +88,26 @@ function pickSession(sessions: SessionRecord[], now: number): SessionRecord | nu
   return sessions.find((s) => TERMINAL.has(s.phase) && now - s.updatedAt < FINISHED_SHOW_MS) ?? null;
 }
 
+/**
+ * Between tool calls the agent flashes "thinking" for a moment; hold the last action on screen
+ * for a beat so the card reads as a steady stream instead of flickering back and forth.
+ */
+function steady(session: SessionRecord | null, now: number): SessionRecord | null {
+  if (!session) {
+    shown = null;
+    return null;
+  }
+  const transient = session.phase === "thinking" || session.phase === "responding";
+  if (shown && shown.id === session.id && transient && !BRIEF.has(shown.phase) && now - shown.at < DWELL_MS) {
+    setTimeout(() => scheduleRefresh(0), DWELL_MS - (now - shown.at) + 30);
+    return { ...session, phase: shown.phase, file: shown.file };
+  }
+  if (!shown || shown.id !== session.id || shown.phase !== session.phase || shown.file !== session.file) {
+    shown = { id: session.id, phase: session.phase, file: session.file, at: now };
+  }
+  return session;
+}
+
 async function writeStatus(fields: Record<string, unknown>): Promise<void> {
   const status = JSON.stringify({ running: true, pid: process.pid, dormant, ...fields });
   if (status === lastStatus) return;
@@ -106,7 +130,7 @@ async function refresh(): Promise<void> {
   const saved = readJson<WorkspaceRecord>(WORKSPACE_PATH);
   // A project remembered from before Cursor was last launched is not what's open now.
   const workspace = saved && saved.updatedAt >= cursorLaunched ? saved : null;
-  const session = pickSession(sessions, now);
+  const session = steady(pickSession(sessions, now), now);
   if (session?.file) lastAgentFile = { session: session.id, file: session.file };
   const lastActivity = Math.max(workspace?.updatedAt ?? 0, sessions[0]?.updatedAt ?? 0, activeSince);
   const busy = !!session && !TERMINAL.has(session.phase);
@@ -138,7 +162,7 @@ async function refresh(): Promise<void> {
   });
 }
 
-function scheduleRefresh(delay = 250): void {
+function scheduleRefresh(delay = 40): void {
   if (refreshTimer) return;
   refreshTimer = setTimeout(() => {
     refreshTimer = null;

@@ -1,6 +1,9 @@
 // Shared by the companion and scripts/build-assets.mjs (run directly by Node), so keep it to
 // erasable TypeScript only: no enums, namespaces, or parameter properties.
 
+/** Bump when the PNGs change; Discord caches external images by URL. */
+export const ASSET_VERSION = 2;
+
 export interface IconSource {
   /** simple-icons slug */
   si?: string;
@@ -114,7 +117,7 @@ export type StatusKey = (typeof STATUS_KEYS)[number];
 /** Inner SVG markup on a 24x24 grid, stroked in the tile's foreground color. */
 export const GLYPHS: Record<string, string> = {
   thinking:
-    '<path d="M11 3.5l1.9 5.1 5.1 1.9-5.1 1.9L11 17.5l-1.9-5.1L4 10.5l5.1-1.9z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/>',
+    '<path d="M12 5.2A2.9 2.9 0 0 0 6.6 6.3 3.4 3.4 0 0 0 4.4 11.6 3.5 3.5 0 0 0 6 17.4 3.1 3.1 0 0 0 12 18.6z"/><path d="M12 5.2a2.9 2.9 0 0 1 5.4 1.1 3.4 3.4 0 0 1 2.2 5.3 3.5 3.5 0 0 1-1.6 5.8 3.1 3.1 0 0 1-6 1.2"/><path d="M12 5.2v13.4"/><path d="M12 9.6c0 1.9-1.4 3.4-3.2 3.7M12 9.6c0 1.9 1.4 3.4 3.2 3.7"/><path d="M6.6 6.3c.1.7.6 1.3 1.3 1.6M17.4 6.3c-.1.7-.6 1.3-1.3 1.6M4.4 11.6c.6-.4 1.4-.6 2.1-.5M19.6 11.6c-.6-.4-1.4-.6-2.1-.5M6 17.4c.7.2 1.5.1 2.1-.3M18 17.4c-.7.2-1.5.1-2.1-.3"/>',
   reading:
     '<path d="M3 5.8c3-1.2 6-1 9 1 3-2 6-2.2 9-1v12.4c-3-1.2-6-1-9 1-3-2-6-2.2-9-1z"/><path d="M12 6.8v12.4"/>',
   searching: '<circle cx="10.5" cy="10.5" r="6.2"/><path d="M15.2 15.2L20.5 20.5"/>',

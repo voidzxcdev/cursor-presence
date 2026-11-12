@@ -1,8 +1,12 @@
 import { Client, type SetActivity } from "@xhayper/discord-rpc";
 import { log } from "./log";
 
-// Discord accepts 5 activity updates per 20 seconds.
-const MIN_GAP_MS = 4_000;
+// Discord accepts 5 activity updates per 20 seconds; spend them as they come rather than one per 4s.
+const WINDOW_MS = 20_000;
+const MAX_PER_WINDOW = 5;
+/** Lets a burst of hook events settle into one update. */
+const SETTLE_MS = 400;
+const MIN_GAP_MS = 1_200;
 const RETRY_MS = 15_000;
 const UNSENT = "\u0000unsent";
 
@@ -15,7 +19,7 @@ export class DiscordLink {
   private failures = 0;
   private desired: SetActivity | null = null;
   private sentKey = UNSENT;
-  private lastSentAt = 0;
+  private sentAt: number[] = [];
   private flushTimer: NodeJS.Timeout | null = null;
   lastError: string | null = null;
 
@@ -79,7 +83,14 @@ export class DiscordLink {
 
   private schedule(): void {
     if (!this.ready || this.flushTimer) return;
-    const wait = Math.max(0, this.lastSentAt + MIN_GAP_MS - Date.now());
+    const now = Date.now();
+    this.sentAt = this.sentAt.filter((t) => now - t < WINDOW_MS);
+    const used = this.sentAt.length;
+    const last = this.sentAt[used - 1] ?? 0;
+    // Widen the gap as the budget runs low so a busy agent never hits a long freeze.
+    const gap = used < 2 ? MIN_GAP_MS : used < MAX_PER_WINDOW - 1 ? 3_000 : 4_500;
+    let wait = Math.max(SETTLE_MS, last + gap - now);
+    if (used >= MAX_PER_WINDOW) wait = Math.max(wait, this.sentAt[0] + WINDOW_MS - now);
     this.flushTimer = setTimeout(() => {
       this.flushTimer = null;
       void this.flush();
@@ -92,7 +103,7 @@ export class DiscordLink {
     const activity = this.desired;
     const key = this.keyOf(activity);
     if (key === this.sentKey) return;
-    this.lastSentAt = Date.now();
+    this.sentAt.push(Date.now());
     try {
       if (activity) await client.user?.setActivity(activity);
       else await client.user?.clearActivity();

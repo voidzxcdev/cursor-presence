@@ -1,5 +1,5 @@
 import type { SetActivity } from "@xhayper/discord-rpc";
-import { languageForFile, type StatusKey } from "../catalog";
+import { ASSET_VERSION, languageForFile, type StatusKey } from "../catalog";
 import { baseName, normalizePath, type Config, type SessionRecord, type WorkspaceRecord } from "../shared";
 import { formatChars } from "./codeCounter";
 import { describeModel } from "./models";
@@ -45,7 +45,7 @@ export function projectRoot(s: Snapshot): string | null {
 
 function image(config: Config, size: "lg" | "sm", key: string): string {
   const base = config.assetBaseUrl.endsWith("/") ? config.assetBaseUrl : `${config.assetBaseUrl}/`;
-  return `${base}${size}/${key}.png`;
+  return `${base}${size}/${key}.png?v=${ASSET_VERSION}`;
 }
 
 const join = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join(" · ");
