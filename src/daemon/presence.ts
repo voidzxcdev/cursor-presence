@@ -70,7 +70,7 @@ export function buildActivity(s: Snapshot): SetActivity | null {
     a = {
       ...base,
       details: `Last turn finished at ${at}`,
-      state: size ? `Last Codebase contains ${size.replace(/chars$/, "Chars")}` : undefined,
+      state: size ? `Last Codebase contains ${size}` : undefined,
       largeImageKey: image(config, "lg", "cursor"),
       largeImageText: "Cursor",
       startTimestamp: s.since || undefined,
