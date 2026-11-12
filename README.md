@@ -4,7 +4,7 @@
 
 # cursor-presence
 
-Discord Rich Presence for Cursor that follows the agent, not your files.
+Discord Rich Presence for Cursor that follows the agent.
 
 <img src="assets/cards.png" width="640" alt="Three Discord activity cards: editing a TypeScript file with Claude, thinking with GPT, and a finished turn">
 
