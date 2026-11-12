@@ -1,17 +1,77 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
+import { createInterface } from "node:readline/promises";
 import { CONFIG_PATH, DEFAULT_CONFIG, PIPE_PATH, STATUS_PATH, loadConfig, readJson } from "./shared";
 
 const USAGE = `cursor-presence <command>
 
   status              Show what Discord currently sees
   pause | resume      Hide or show your presence
-  client-id <id>      Set the Discord Application ID
+  client-id [id]      Set the Discord Application ID (asks for it if omitted)
   hide <project>      Show a project as "a private project"
   unhide <project>
+  autostart on|off    Start with Windows and wait for Cursor
   start | stop | restart`;
+
+const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+const RUN_VALUE = "CursorPresence";
+
+function autostart(enable: boolean): void {
+  if (process.platform !== "win32") throw new Error("Autostart is only set up automatically on Windows.");
+  if (!enable) {
+    try {
+      execFileSync("reg", ["delete", RUN_KEY, "/v", RUN_VALUE, "/f"], { stdio: "ignore" });
+    } catch {}
+    return;
+  }
+  // conhost --headless runs the console app without ever showing a window.
+  const conhost = path.join(process.env.WINDIR ?? "C:\\Windows", "System32", "conhost.exe");
+  const command = `"${conhost}" --headless "${process.execPath}" "${path.join(__dirname, "daemon.cjs")}"`;
+  execFileSync("reg", ["add", RUN_KEY, "/v", RUN_VALUE, "/t", "REG_SZ", "/d", command, "/f"], { stdio: "ignore" });
+}
+
+async function askClientId(): Promise<string> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    return (await rl.question("Paste your Discord Application ID: ")).trim();
+  } finally {
+    rl.close();
+  }
+}
+
+function checkClientId(id: string): void {
+  if (/^\d{15,22}$/.test(id)) return;
+  if (id.includes(".") && id.length > 40) {
+    throw new Error(
+      "That looks like a bot token. Nothing was saved. Rich Presence never needs it, so keep it private " +
+        "(reset it in the Developer Portal if you shared it anywhere). Copy the Application ID from General Information instead.",
+    );
+  }
+  throw new Error("That isn't an Application ID. It's the 17-20 digit number under General Information in the Developer Portal.");
+}
+
+async function waitForDiscord(): Promise<void> {
+  for (let i = 0; i < 40; i++) {
+    await sleep(500);
+    const s = readJson<{ discordConnected?: boolean; discordError?: string | null; dormant?: boolean }>(STATUS_PATH);
+    if (s?.discordConnected) {
+      console.log("Connected to Discord. Your presence is live.");
+      return;
+    }
+    if (s?.dormant) {
+      console.log("Saved. It will connect to Discord as soon as Cursor is open.");
+      return;
+    }
+    if (i > 8 && s?.discordError) {
+      console.log(`Saved, but Discord refused the connection: ${s.discordError}`);
+      console.log("Check that the Discord desktop app is running and the ID is correct.");
+      return;
+    }
+  }
+  console.log("Saved. Waiting for the Discord desktop app; it will connect once Discord is running.");
+}
 
 function send(message: string): Promise<boolean> {
   return new Promise((resolve) => {
@@ -58,11 +118,18 @@ async function main(): Promise<void> {
       await send("refresh");
       console.log(cmd === "pause" ? "Presence paused and cleared." : "Presence resumed.");
       return;
-    case "client-id":
-      if (!arg || !/^\d{15,22}$/.test(arg)) throw new Error("Pass the numeric Application ID from the Discord Developer Portal.");
-      saveConfig({ clientId: arg });
+    case "client-id": {
+      const id = (arg ?? (await askClientId())).trim();
+      checkClientId(id);
+      saveConfig({ clientId: id });
       if (!(await send("refresh"))) start();
-      console.log("Application ID saved.");
+      await waitForDiscord();
+      return;
+    }
+    case "autostart":
+      if (arg !== "on" && arg !== "off") throw new Error("Usage: autostart on|off");
+      autostart(arg === "on");
+      console.log(arg === "on" ? "Starts with Windows and waits for Cursor." : "Autostart removed.");
       return;
     case "hide":
     case "unhide": {

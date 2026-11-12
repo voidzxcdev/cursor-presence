@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -28,6 +28,9 @@ await writeFile(CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`);
 
 await writeHooksConfig(hooks);
 
+const ctl = path.join(APP_DIR, "ctl.cjs");
+if (process.platform === "win32") execFileSync(process.execPath, [ctl, "autostart", "on"], { stdio: "ignore" });
+
 spawn(process.execPath, [path.join(APP_DIR, "daemon.cjs")], {
   detached: true,
   stdio: "ignore",
@@ -36,7 +39,8 @@ spawn(process.execPath, [path.join(APP_DIR, "daemon.cjs")], {
 
 console.log(`Installed to ${APP_DIR}`);
 console.log(`Hooks registered in ${HOOKS_JSON}`);
+if (process.platform === "win32") console.log("Starts with Windows and goes live whenever Cursor is open.");
 console.log(`Settings: ${CONFIG_PATH}`);
 if (!config.clientId) {
-  console.log('\nNext: put your Discord Application ID in "clientId" in the settings file.');
+  console.log(`\nNext, set your Discord Application ID:\n  node "${ctl}" client-id`);
 }

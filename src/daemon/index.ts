@@ -24,18 +24,24 @@ const AGENT_STALE_MS = 3 * 60_000;
 const FINISHED_SHOW_MS = 45_000;
 const SESSION_TTL_MS = 12 * 60 * 60_000;
 const RECOUNT_MS = 10 * 60_000;
-const CURSOR_CHECK_MS = 15_000;
-/** The CLI agent runs hooks without the desktop app, so recent hook traffic also keeps us alive. */
+const CURSOR_CHECK_ACTIVE_MS = 15_000;
+const CURSOR_CHECK_DORMANT_MS = 5_000;
+/** The CLI agent runs hooks without the desktop app, so recent hook traffic also keeps us awake. */
 const KEEPALIVE_MS = 5 * 60_000;
 
 const TERMINAL = new Set(["done", "stopped", "error"]);
 
 const discord = new DiscordLink();
 const counter = new CodeCounter();
-let lastNudge = Date.now();
+let lastNudge = process.argv.includes("--from-hook") ? Date.now() : 0;
 let refreshTimer: NodeJS.Timeout | null = null;
 let recountTimer: NodeJS.Timeout | null = null;
+/** null until the first check, so a companion started mid-session doesn't treat Cursor as just opened. */
+let cursorRunning: boolean | null = null;
+let cursorOpenedAt = 0;
 let cursorMisses = 0;
+let dormant = true;
+let activeSince = 0;
 let lastStatus = "";
 let shuttingDown = false;
 
@@ -77,17 +83,30 @@ function pickSession(sessions: SessionRecord[], now: number): SessionRecord | nu
   return sessions.find((s) => TERMINAL.has(s.phase) && now - s.updatedAt < FINISHED_SHOW_MS) ?? null;
 }
 
+async function writeStatus(fields: Record<string, unknown>): Promise<void> {
+  const status = JSON.stringify({ running: true, pid: process.pid, dormant, ...fields });
+  if (status === lastStatus) return;
+  lastStatus = status;
+  await writeJsonAtomic(STATUS_PATH, { ...JSON.parse(status), updatedAt: Date.now() }).catch(() => {});
+}
+
 async function refresh(): Promise<void> {
   if (shuttingDown) return;
-  const now = Date.now();
   const config = loadConfig();
+  if (dormant) {
+    await writeStatus({ cursorRunning, clientIdSet: !!config.clientId, discordConnected: false, activity: null });
+    return;
+  }
+  const now = Date.now();
   discord.configure(config.clientId);
   discord.tick();
 
   const sessions = readSessions(now);
-  const workspace = readJson<WorkspaceRecord>(WORKSPACE_PATH);
+  const saved = readJson<WorkspaceRecord>(WORKSPACE_PATH);
+  // A project remembered from before Cursor was last reopened is not what's open now.
+  const workspace = saved && saved.updatedAt >= cursorOpenedAt ? saved : null;
   const session = pickSession(sessions, now);
-  const lastActivity = Math.max(workspace?.updatedAt ?? 0, sessions[0]?.updatedAt ?? 0);
+  const lastActivity = Math.max(workspace?.updatedAt ?? 0, sessions[0]?.updatedAt ?? 0, activeSince);
   const busy = !!session && !TERMINAL.has(session.phase);
 
   const snapshot: Snapshot = {
@@ -96,6 +115,7 @@ async function refresh(): Promise<void> {
     workspace,
     codeChars: null,
     idle: !busy && now - lastActivity > config.idleMinutes * 60_000,
+    since: Math.max(cursorOpenedAt, workspace?.openedAt ?? 0) || activeSince,
     now,
   };
   const root = projectRoot(snapshot);
@@ -105,18 +125,14 @@ async function refresh(): Promise<void> {
   const activity = config.paused ? null : buildActivity(snapshot);
   discord.set(activity);
 
-  const status = JSON.stringify({
-    running: true,
-    pid: process.pid,
+  await writeStatus({
+    cursorRunning,
     paused: config.paused,
     clientIdSet: !!config.clientId,
     discordConnected: discord.connected,
+    discordError: discord.lastError,
     activity,
   });
-  if (status !== lastStatus) {
-    lastStatus = status;
-    await writeJsonAtomic(STATUS_PATH, { ...JSON.parse(status), updatedAt: now }).catch(() => {});
-  }
 }
 
 function scheduleRefresh(delay = 250): void {
@@ -143,18 +159,41 @@ function onMessage(line: string): void {
     return;
   }
   if (msg === "ping") return;
-  lastNudge = Date.now();
+  if (msg !== "refresh") lastNudge = Date.now();
+  updateMode();
   if (msg === "afterFileEdit" || msg === "afterTabFileEdit" || msg === "recount") scheduleRecount();
   scheduleRefresh();
 }
 
-async function checkCursor(): Promise<void> {
-  if (await isCursorRunning()) {
-    cursorMisses = 0;
-    return;
+/** Wakes up while Cursor (or a CLI agent sending hooks) is running; otherwise sits quietly off Discord. */
+function updateMode(): void {
+  const active = cursorRunning || Date.now() - lastNudge < KEEPALIVE_MS;
+  if (active && dormant) {
+    dormant = false;
+    activeSince = Date.now();
+    log("active");
+    scheduleRefresh(0);
+  } else if (!active && !dormant) {
+    dormant = true;
+    log("dormant");
+    counter.setRoot(null);
+    void discord.teardown().then(() => scheduleRefresh(0));
   }
-  cursorMisses++;
-  if (cursorMisses >= 2 && Date.now() - lastNudge > KEEPALIVE_MS) await shutdown("Cursor is not running");
+}
+
+async function checkCursor(): Promise<void> {
+  const running = await isCursorRunning();
+  if (running) {
+    cursorMisses = 0;
+    if (cursorRunning === false) cursorOpenedAt = Date.now();
+    if (!cursorRunning) log("Cursor is running");
+    cursorRunning = true;
+  } else if (cursorRunning !== false && ++cursorMisses >= 2) {
+    if (cursorRunning) log("Cursor closed");
+    cursorRunning = false;
+  }
+  updateMode();
+  setTimeout(() => void checkCursor(), dormant ? CURSOR_CHECK_DORMANT_MS : CURSOR_CHECK_ACTIVE_MS);
 }
 
 async function shutdown(reason: string): Promise<void> {
@@ -215,9 +254,9 @@ async function main(): Promise<void> {
   process.on("unhandledRejection", (err) => log(`unhandled: ${err}`));
 
   setInterval(() => scheduleRefresh(0), TICK_MS);
-  setInterval(() => void checkCursor(), CURSOR_CHECK_MS);
   setInterval(() => void counter.recount().then(() => scheduleRefresh()), RECOUNT_MS);
-  scheduleRefresh(0);
+  updateMode();
+  await checkCursor();
 }
 
 void main();

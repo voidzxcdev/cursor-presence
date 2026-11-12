@@ -17,6 +17,7 @@ export class DiscordLink {
   private sentKey = UNSENT;
   private lastSentAt = 0;
   private flushTimer: NodeJS.Timeout | null = null;
+  lastError: string | null = null;
 
   get connected(): boolean {
     return this.ready;
@@ -27,6 +28,8 @@ export class DiscordLink {
     if (id === this.clientId) return;
     this.clientId = id;
     this.retryAt = 0;
+    this.failures = 0;
+    this.lastError = null;
     void this.teardown();
   }
 
@@ -56,11 +59,13 @@ export class DiscordLink {
       this.client = client;
       this.ready = true;
       this.failures = 0;
+      this.lastError = null;
       this.sentKey = UNSENT;
       log("discord connected");
       this.schedule();
     } catch (err) {
-      if (this.failures++ === 0) log(`discord unavailable: ${(err as Error)?.message ?? err}`);
+      this.lastError = String((err as Error)?.message ?? err);
+      if (this.failures++ === 0) log(`discord unavailable: ${this.lastError}`);
       this.retryAt = Date.now() + RETRY_MS;
       client.destroy().catch(() => {});
     } finally {

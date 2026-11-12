@@ -166,7 +166,7 @@ function nudgeDaemon(event: string): Promise<void> {
     socket.on("connect", () => socket.end(`${event}\n`, done));
     socket.on("error", () => {
       const daemon = path.join(__dirname, "daemon.cjs");
-      spawn(process.execPath, [daemon], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+      spawn(process.execPath, [daemon, "--from-hook"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
       resolve();
     });
   });

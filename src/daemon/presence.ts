@@ -31,6 +31,8 @@ export interface Snapshot {
   workspace: WorkspaceRecord | null;
   codeChars: number | null;
   idle: boolean;
+  /** When the current Cursor session began, for the elapsed timer outside agent runs. */
+  since: number;
   now: number;
 }
 
@@ -107,7 +109,7 @@ export function buildActivity(s: Snapshot): SetActivity | null {
       largeImageText: lang?.name ?? "Cursor",
       smallImageKey: lang ? image(config, "sm", "cursor") : undefined,
       smallImageText: lang ? "Cursor" : undefined,
-      startTimestamp: workspace?.openedAt,
+      startTimestamp: s.since || undefined,
     };
   }
 
