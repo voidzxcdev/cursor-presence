@@ -30,8 +30,6 @@ export interface Snapshot {
   idle: boolean;
   /** When Cursor launched; the one start time every card shares. */
   since: number;
-  /** Last file the current agent run touched, so its logo stays put between steps. */
-  lastAgentFile: string | null;
   now: number;
 }
 
@@ -72,8 +70,7 @@ export function buildActivity(s: Snapshot): SetActivity | null {
     const model = config.showModel ? describeModel(session.model, session.modelId) : null;
     const rawFile = config.showAgentFile && !hidden && (phase === "reading" || phase === "editing") ? session.file : null;
     const isSecret = !!rawFile && isProtectedFile(rawFile, config);
-    const logoFile = hidden ? null : rawFile ?? s.lastAgentFile;
-    const lang = logoFile && !isProtectedFile(logoFile, config) ? languageForFile(logoFile) : undefined;
+    const lang = rawFile && !isSecret ? languageForFile(rawFile) : undefined;
     const target = rawFile ? (isSecret ? "a protected file" : rawFile) : phase === "reading" || phase === "editing" ? "code" : null;
 
     a = {

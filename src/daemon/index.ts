@@ -39,7 +39,6 @@ let recountTimer: NodeJS.Timeout | null = null;
 /** When Cursor itself launched; every card counts from here so the timer never resets mid-session. */
 let cursorLaunched = 0;
 let cursorMisses = 0;
-let lastAgentFile: { session: string; file: string } | null = null;
 let shown: { id: string; phase: SessionRecord["phase"]; file: string | null; at: number } | null = null;
 const startedAt = Date.now();
 let lastStatus = "";
@@ -122,7 +121,6 @@ async function refresh(): Promise<void> {
   // A project remembered from before Cursor was last launched is not what's open now.
   const workspace = saved && saved.updatedAt >= cursorLaunched ? saved : null;
   const session = steady(pickSession(sessions, now), now);
-  if (session?.file) lastAgentFile = { session: session.id, file: session.file };
   const lastActivity = Math.max(workspace?.updatedAt ?? 0, sessions[0]?.updatedAt ?? 0, startedAt);
   const busy = !!session && !TERMINAL.has(session.phase);
 
@@ -133,7 +131,6 @@ async function refresh(): Promise<void> {
     codeChars: null,
     idle: !busy && now - lastActivity > config.idleMinutes * 60_000,
     since: cursorLaunched || startedAt,
-    lastAgentFile: session && lastAgentFile?.session === session.id ? lastAgentFile.file : null,
     now,
   };
   const root = projectRoot(snapshot);
