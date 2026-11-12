@@ -58,8 +58,8 @@ npm run install-presence
 
 ## What it shows
 
-| | |
-|---|---|
+| State | On Discord |
+|:---|:---|
 | **Agent** | Phase, language logo of the file it's on, model and codebase size |
 | **Tab** | Language you're writing and codebase size |
 | **Finished** | Cursor logo · `Last turn finished at 23:36` · `Last Codebase contains 68K chars` |
