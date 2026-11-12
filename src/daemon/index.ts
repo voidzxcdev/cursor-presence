@@ -24,10 +24,8 @@ const AGENT_STALE_MS = 3 * 60_000;
 const FINISHED_SHOW_MS = 45_000;
 const SESSION_TTL_MS = 12 * 60 * 60_000;
 const RECOUNT_MS = 10 * 60_000;
-const CURSOR_CHECK_ACTIVE_MS = 15_000;
-const CURSOR_CHECK_DORMANT_MS = 5_000;
-/** The CLI agent runs hooks without the desktop app, so recent hook traffic also keeps us awake. */
-const KEEPALIVE_MS = 5 * 60_000;
+/** Lives exactly as long as Cursor: two missed checks in a row and it clears Discord and exits. */
+const CURSOR_CHECK_MS = 5_000;
 
 const TERMINAL = new Set(["done", "stopped", "error"]);
 /** Minimum time an action stays on the card before a passing "thinking" replaces it. */
@@ -36,17 +34,14 @@ const BRIEF = new Set(["thinking", "responding", "starting"]);
 
 const discord = new DiscordLink();
 const counter = new CodeCounter();
-let lastNudge = process.argv.includes("--from-hook") ? Date.now() : 0;
 let refreshTimer: NodeJS.Timeout | null = null;
 let recountTimer: NodeJS.Timeout | null = null;
-let cursorRunning: boolean | null = null;
 /** When Cursor itself launched; every card counts from here so the timer never resets mid-session. */
 let cursorLaunched = 0;
 let cursorMisses = 0;
 let lastAgentFile: { session: string; file: string } | null = null;
 let shown: { id: string; phase: SessionRecord["phase"]; file: string | null; at: number } | null = null;
-let dormant = true;
-let activeSince = 0;
+const startedAt = Date.now();
 let lastStatus = "";
 let shuttingDown = false;
 
@@ -109,7 +104,7 @@ function steady(session: SessionRecord | null, now: number): SessionRecord | nul
 }
 
 async function writeStatus(fields: Record<string, unknown>): Promise<void> {
-  const status = JSON.stringify({ running: true, pid: process.pid, dormant, ...fields });
+  const status = JSON.stringify({ running: true, pid: process.pid, ...fields });
   if (status === lastStatus) return;
   lastStatus = status;
   await writeJsonAtomic(STATUS_PATH, { ...JSON.parse(status), updatedAt: Date.now() }).catch(() => {});
@@ -118,10 +113,6 @@ async function writeStatus(fields: Record<string, unknown>): Promise<void> {
 async function refresh(): Promise<void> {
   if (shuttingDown) return;
   const config = loadConfig();
-  if (dormant) {
-    await writeStatus({ cursorRunning, clientIdSet: !!config.clientId, discordConnected: false, activity: null });
-    return;
-  }
   const now = Date.now();
   discord.configure(config.clientId);
   discord.tick();
@@ -132,7 +123,7 @@ async function refresh(): Promise<void> {
   const workspace = saved && saved.updatedAt >= cursorLaunched ? saved : null;
   const session = steady(pickSession(sessions, now), now);
   if (session?.file) lastAgentFile = { session: session.id, file: session.file };
-  const lastActivity = Math.max(workspace?.updatedAt ?? 0, sessions[0]?.updatedAt ?? 0, activeSince);
+  const lastActivity = Math.max(workspace?.updatedAt ?? 0, sessions[0]?.updatedAt ?? 0, startedAt);
   const busy = !!session && !TERMINAL.has(session.phase);
 
   const snapshot: Snapshot = {
@@ -141,7 +132,7 @@ async function refresh(): Promise<void> {
     workspace,
     codeChars: null,
     idle: !busy && now - lastActivity > config.idleMinutes * 60_000,
-    since: cursorLaunched || activeSince,
+    since: cursorLaunched || startedAt,
     lastAgentFile: session && lastAgentFile?.session === session.id ? lastAgentFile.file : null,
     now,
   };
@@ -153,7 +144,6 @@ async function refresh(): Promise<void> {
   discord.set(activity);
 
   await writeStatus({
-    cursorRunning,
     paused: config.paused,
     clientIdSet: !!config.clientId,
     discordConnected: discord.connected,
@@ -186,42 +176,23 @@ function onMessage(line: string): void {
     return;
   }
   if (msg === "ping") return;
-  if (msg !== "refresh") lastNudge = Date.now();
-  updateMode();
   if (msg === "afterFileEdit" || msg === "afterTabFileEdit" || msg === "recount") scheduleRecount();
   scheduleRefresh();
 }
 
-/** Wakes up while Cursor (or a CLI agent sending hooks) is running; otherwise sits quietly off Discord. */
-function updateMode(): void {
-  const active = cursorRunning || Date.now() - lastNudge < KEEPALIVE_MS;
-  if (active && dormant) {
-    dormant = false;
-    activeSince = Date.now();
-    log("active");
-    scheduleRefresh(0);
-  } else if (!active && !dormant) {
-    dormant = true;
-    log("dormant");
-    counter.setRoot(null);
-    void discord.teardown().then(() => scheduleRefresh(0));
-  }
-}
-
 async function checkCursor(): Promise<void> {
-  const running = await isCursorRunning();
-  if (running) {
+  if (await isCursorRunning()) {
     cursorMisses = 0;
-    if (!cursorLaunched) cursorLaunched = (await cursorLaunchedAt()) ?? Date.now();
-    if (!cursorRunning) log(`Cursor is running (launched ${new Date(cursorLaunched).toISOString()})`);
-    cursorRunning = true;
-  } else if (cursorRunning !== false && ++cursorMisses >= 2) {
-    if (cursorRunning) log("Cursor closed");
-    cursorRunning = false;
-    cursorLaunched = 0;
+    if (!cursorLaunched) {
+      cursorLaunched = (await cursorLaunchedAt()) ?? Date.now();
+      log(`Cursor is running (launched ${new Date(cursorLaunched).toISOString()})`);
+      scheduleRefresh(0);
+    }
+  } else if (++cursorMisses >= 2) {
+    await shutdown("Cursor closed");
+    return;
   }
-  updateMode();
-  setTimeout(() => void checkCursor(), dormant ? CURSOR_CHECK_DORMANT_MS : CURSOR_CHECK_ACTIVE_MS);
+  setTimeout(() => void checkCursor(), CURSOR_CHECK_MS);
 }
 
 async function shutdown(reason: string): Promise<void> {
@@ -281,10 +252,10 @@ async function main(): Promise<void> {
   process.on("uncaughtException", (err) => log(`uncaught: ${err?.stack ?? err}`));
   process.on("unhandledRejection", (err) => log(`unhandled: ${err}`));
 
+  // Learn Cursor's launch time before the first update so the timer starts out right.
+  await checkCursor();
   setInterval(() => scheduleRefresh(0), TICK_MS);
   setInterval(() => void counter.recount().then(() => scheduleRefresh()), RECOUNT_MS);
-  updateMode();
-  await checkCursor();
 }
 
 void main();

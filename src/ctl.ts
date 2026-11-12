@@ -1,4 +1,4 @@
-import { execFileSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
@@ -12,25 +12,7 @@ const USAGE = `cursor-presence <command>
   client-id [id]      Set the Discord Application ID (asks for it if omitted)
   hide <project>      Also hide file names and code size in this project
   unhide <project>
-  autostart on|off    Start with Windows and wait for Cursor
   start | stop | restart`;
-
-const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
-const RUN_VALUE = "CursorPresence";
-
-function autostart(enable: boolean): void {
-  if (process.platform !== "win32") throw new Error("Autostart is only set up automatically on Windows.");
-  if (!enable) {
-    try {
-      execFileSync("reg", ["delete", RUN_KEY, "/v", RUN_VALUE, "/f"], { stdio: "ignore" });
-    } catch {}
-    return;
-  }
-  // conhost --headless runs the console app without ever showing a window.
-  const conhost = path.join(process.env.WINDIR ?? "C:\\Windows", "System32", "conhost.exe");
-  const command = `"${conhost}" --headless "${process.execPath}" "${path.join(__dirname, "daemon.cjs")}"`;
-  execFileSync("reg", ["add", RUN_KEY, "/v", RUN_VALUE, "/t", "REG_SZ", "/d", command, "/f"], { stdio: "ignore" });
-}
 
 async function askClientId(): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -55,13 +37,13 @@ function checkClientId(id: string): void {
 async function waitForDiscord(): Promise<void> {
   for (let i = 0; i < 40; i++) {
     await sleep(500);
-    const s = readJson<{ discordConnected?: boolean; discordError?: string | null; dormant?: boolean }>(STATUS_PATH);
+    const s = readJson<{ running?: boolean; discordConnected?: boolean; discordError?: string | null }>(STATUS_PATH);
     if (s?.discordConnected) {
       console.log("Connected to Discord. Your presence is live.");
       return;
     }
-    if (s?.dormant) {
-      console.log("Saved. It will connect to Discord as soon as Cursor is open.");
+    if (i > 12 && s?.running === false) {
+      console.log("Saved. It goes live the next time Cursor is open.");
       return;
     }
     if (i > 8 && s?.discordError) {
@@ -126,11 +108,6 @@ async function main(): Promise<void> {
       await waitForDiscord();
       return;
     }
-    case "autostart":
-      if (arg !== "on" && arg !== "off") throw new Error("Usage: autostart on|off");
-      autostart(arg === "on");
-      console.log(arg === "on" ? "Starts with Windows and waits for Cursor." : "Autostart removed.");
-      return;
     case "hide":
     case "unhide": {
       if (!arg) throw new Error(`Usage: ${cmd} <project folder name>`);

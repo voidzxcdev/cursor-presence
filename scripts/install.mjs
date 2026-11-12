@@ -30,7 +30,14 @@ await writeFile(CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`);
 await writeHooksConfig(hooks);
 
 const ctl = path.join(APP_DIR, "ctl.cjs");
-if (process.platform === "win32") execFileSync(process.execPath, [ctl, "autostart", "on"], { stdio: "ignore" });
+if (process.platform === "win32") {
+  // Earlier versions started with Windows; now Cursor's own hooks start it.
+  try {
+    execFileSync("reg", ["delete", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", "CursorPresence", "/f"], {
+      stdio: "ignore",
+    });
+  } catch {}
+}
 
 spawn(process.execPath, [path.join(APP_DIR, "daemon.cjs")], {
   detached: true,
@@ -40,7 +47,7 @@ spawn(process.execPath, [path.join(APP_DIR, "daemon.cjs")], {
 
 console.log(`Installed to ${APP_DIR}`);
 console.log(`Hooks registered in ${HOOKS_JSON}`);
-if (process.platform === "win32") console.log("Starts with Windows and goes live whenever Cursor is open.");
+console.log("Cursor starts it and it exits when Cursor closes.");
 console.log(`Settings: ${CONFIG_PATH}`);
 if (!config.clientId) {
   console.log(`\nNext, set your Discord Application ID:\n  node "${ctl}" client-id`);
