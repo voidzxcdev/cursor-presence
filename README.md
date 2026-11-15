@@ -40,7 +40,7 @@ irm voidzxcdev.github.io/cursor-presence/install.ps1 | iex
 
 1. Create an app named **Cursor** in the [Discord Developer Portal](https://discord.com/developers/applications) and copy the **Application ID** (not a bot token).
 2. Run the command above.
-3. Open Cursor. The presence shows as soon as Cursor opens, before you pick a folder, and clears itself when Cursor closes.
+3. Open Cursor. The presence runs only while Cursor is open, and the process exits when Cursor closes.
 
 Needs the Discord desktop app. Node.js 20+ is installed with winget if it's missing. Run the same command again to update.
 
@@ -63,7 +63,7 @@ npm run install-presence
 | **Agent** | Phase, language logo of the file it's on, model and codebase size |
 | **Tab** | Language you're writing and codebase size |
 | **Finished** | Cursor logo · `Last turn finished at 23:36` · `Last Codebase contains 68K chars` |
-| **Open** | `In Cursor`, before a folder is open and while you are just looking |
+| **Open** | `In Cursor`, while Cursor is open and you are just looking |
 | **Idle** | `Idle in Cursor`. The card stays up; it does not disappear |
 
 The timer counts from when Cursor launched and never resets between cards.
@@ -115,7 +115,7 @@ Changes apply within a few seconds.
 
 <br>
 
-Cursor runs a small hook on agent and editor events. The hook writes a few safe fields to `~/.cursor-presence/state` and nudges a background companion, starting it if needed. The companion also starts with Windows, so opening Cursor is enough: it shows `In Cursor` before a workspace is open. It counts the project's code (source files git doesn't ignore, minus lockfiles and minified bundles), builds the card and talks to Discord over its local connection, within Discord's rate limits. While you are away it keeps the card up and refreshes it. When Cursor closes, the card clears and the companion waits for the next launch.
+Cursor runs a small hook on agent and editor events. The hook writes a few safe fields to `~/.cursor-presence/state` and nudges a background companion, starting it if needed. Nothing is registered to start with Windows, and nothing keeps running after Cursor closes. While Cursor is open and you are away, the card stays up and is refreshed. The companion counts the project's code (source files git doesn't ignore, minus lockfiles and minified bundles), builds the card and talks to Discord over its local connection, within Discord's rate limits. When Cursor closes, it clears the card and exits.
 
 Built and tested on Windows. The macOS and Linux paths are in place but untested.
 

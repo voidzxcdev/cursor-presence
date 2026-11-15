@@ -24,7 +24,7 @@ const AGENT_STALE_MS = 3 * 60_000;
 const FINISHED_SHOW_MS = 3 * 60_000;
 const SESSION_TTL_MS = 12 * 60 * 60_000;
 const RECOUNT_MS = 10 * 60_000;
-/** Two missed checks in a row means Cursor actually closed. A failed check does not count. */
+/** Two missed checks in a row means Cursor is gone, so this process exits with it. A failed check does not count. */
 const CURSOR_CHECK_MS = 5_000;
 
 const TERMINAL = new Set(["done", "stopped", "error"]);
@@ -204,12 +204,9 @@ async function checkCursor(): Promise<void> {
       log(`Cursor is running (launched ${new Date(cursorLaunched).toISOString()})`);
       scheduleRefresh(0);
     }
-  } else if (cursorLaunched && ++cursorMisses >= 2) {
-    log("Cursor closed; presence cleared until it opens again");
-    cursorLaunched = 0;
-    cursorMisses = 0;
-    shown = null;
-    scheduleRefresh(0);
+  } else if (++cursorMisses >= 2) {
+    await shutdown("Cursor closed");
+    return;
   }
   setTimeout(() => void checkCursor(), CURSOR_CHECK_MS);
 }
