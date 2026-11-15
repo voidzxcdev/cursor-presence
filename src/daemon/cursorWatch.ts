@@ -8,9 +8,11 @@ function run(cmd: string, args: string[]): Promise<{ ok: boolean; out: string }>
   });
 }
 
-export async function isCursorRunning(): Promise<boolean> {
+/** true/false when the check succeeded. null means the check itself failed, so the caller must not treat Cursor as closed. */
+export async function isCursorRunning(): Promise<boolean | null> {
   if (process.platform === "win32") {
-    const { out } = await run("tasklist", ["/FI", "IMAGENAME eq Cursor.exe", "/FO", "CSV", "/NH"]);
+    const { ok, out } = await run("tasklist", ["/FI", "IMAGENAME eq Cursor.exe", "/FO", "CSV", "/NH"]);
+    if (!ok) return null;
     return /"cursor\.exe"/i.test(out);
   }
   if (process.platform === "darwin") return (await run("pgrep", ["-x", "Cursor"])).ok;

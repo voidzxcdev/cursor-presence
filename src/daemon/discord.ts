@@ -8,6 +8,8 @@ const MAX_PER_WINDOW = 5;
 const SETTLE_MS = 400;
 const MIN_GAP_MS = 1_200;
 const RETRY_MS = 15_000;
+/** Discord drops a card that is never sent again. Refresh the same one while you are away. */
+const KEEPALIVE_MS = 25_000;
 const UNSENT = "\u0000unsent";
 
 export class DiscordLink {
@@ -19,6 +21,7 @@ export class DiscordLink {
   private failures = 0;
   private desired: SetActivity | null = null;
   private sentKey = UNSENT;
+  private sentWall = 0;
   private sentAt: number[] = [];
   private flushTimer: NodeJS.Timeout | null = null;
   lastError: string | null = null;
@@ -56,6 +59,7 @@ export class DiscordLink {
       this.client = null;
       this.ready = false;
       this.sentKey = UNSENT;
+      this.sentWall = 0;
       this.retryAt = Date.now() + 5_000;
     });
     try {
@@ -65,6 +69,7 @@ export class DiscordLink {
       this.failures = 0;
       this.lastError = null;
       this.sentKey = UNSENT;
+      this.sentWall = 0;
       log("discord connected");
       this.schedule();
     } catch (err) {
@@ -81,6 +86,14 @@ export class DiscordLink {
     return activity ? JSON.stringify(activity) : "";
   }
 
+  private arm(wait: number): void {
+    if (!this.ready || this.flushTimer) return;
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = null;
+      void this.flush();
+    }, wait);
+  }
+
   private schedule(): void {
     if (!this.ready || this.flushTimer) return;
     const now = Date.now();
@@ -91,10 +104,7 @@ export class DiscordLink {
     const gap = used < 2 ? MIN_GAP_MS : used < MAX_PER_WINDOW - 1 ? 3_000 : 4_500;
     let wait = Math.max(SETTLE_MS, last + gap - now);
     if (used >= MAX_PER_WINDOW) wait = Math.max(wait, this.sentAt[0] + WINDOW_MS - now);
-    this.flushTimer = setTimeout(() => {
-      this.flushTimer = null;
-      void this.flush();
-    }, wait);
+    this.arm(wait);
   }
 
   private async flush(): Promise<void> {
@@ -102,16 +112,23 @@ export class DiscordLink {
     if (!client || !this.ready) return;
     const activity = this.desired;
     const key = this.keyOf(activity);
-    if (key === this.sentKey) return;
+    const stale = !!activity && Date.now() - this.sentWall >= KEEPALIVE_MS;
+    if (key === this.sentKey && !stale) {
+      if (activity) this.arm(KEEPALIVE_MS);
+      return;
+    }
     this.sentAt.push(Date.now());
     try {
       if (activity) await client.user?.setActivity(activity);
       else await client.user?.clearActivity();
       this.sentKey = key;
+      this.sentWall = Date.now();
     } catch (err) {
       log(`discord update failed: ${(err as Error)?.message ?? err}`);
+      this.sentWall = 0;
     }
-    if (this.keyOf(this.desired) !== this.sentKey) this.schedule();
+    if (activity && this.keyOf(this.desired) === this.sentKey) this.arm(KEEPALIVE_MS);
+    else if (this.keyOf(this.desired) !== this.sentKey) this.schedule();
   }
 
   async teardown(): Promise<void> {
@@ -121,6 +138,7 @@ export class DiscordLink {
     this.client = null;
     this.ready = false;
     this.sentKey = UNSENT;
+    this.sentWall = 0;
     if (!client) return;
     await client.user?.clearActivity().catch(() => {});
     await client.destroy().catch(() => {});

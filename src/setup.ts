@@ -93,8 +93,9 @@ async function install(): Promise<void> {
   writeFileSync(CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`);
   writeHooks(hooks);
 
+  enableAutostart();
   spawn(process.execPath, [path.join(APP_DIR, "daemon.cjs")], { detached: true, stdio: "ignore", windowsHide: true }).unref();
-  console.log("Installed. Cursor starts the presence and it exits when Cursor closes.");
+  console.log("Installed. Presence shows as soon as Cursor opens, and clears when Cursor closes.");
 
   const ctl = path.join(APP_DIR, "ctl.cjs");
   if (config.clientId) return;
@@ -105,8 +106,23 @@ async function install(): Promise<void> {
   }
 }
 
+const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+const RUN_VALUE = "cursor-presence";
+
+function enableAutostart(): void {
+  if (process.platform !== "win32") return;
+  const command = `"${process.execPath}" "${path.join(APP_DIR, "daemon.cjs")}"`;
+  spawnSync("reg", ["add", RUN_KEY, "/v", RUN_VALUE, "/t", "REG_SZ", "/d", command, "/f"], { windowsHide: true });
+}
+
+function disableAutostart(): void {
+  if (process.platform !== "win32") return;
+  spawnSync("reg", ["delete", RUN_KEY, "/v", RUN_VALUE, "/f"], { windowsHide: true });
+}
+
 async function uninstall(): Promise<void> {
   writeHooks(withoutOurs(readHooks()));
+  disableAutostart();
   await stopDaemon();
   rmSync(APP_DIR, { recursive: true, force: true });
   rmSync(STATE_DIR, { recursive: true, force: true });

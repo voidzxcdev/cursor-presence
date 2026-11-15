@@ -24,7 +24,7 @@ const AGENT_STALE_MS = 3 * 60_000;
 const FINISHED_SHOW_MS = 3 * 60_000;
 const SESSION_TTL_MS = 12 * 60 * 60_000;
 const RECOUNT_MS = 10 * 60_000;
-/** Lives exactly as long as Cursor: two missed checks in a row and it clears Discord and exits. */
+/** Two missed checks in a row means Cursor actually closed. A failed check does not count. */
 const CURSOR_CHECK_MS = 5_000;
 
 const TERMINAL = new Set(["done", "stopped", "error"]);
@@ -121,7 +121,21 @@ async function refresh(): Promise<void> {
   // A project remembered from before Cursor was last launched is not what's open now.
   const workspace = saved && saved.updatedAt >= cursorLaunched ? saved : null;
   const session = steady(pickSession(sessions, now), now);
-  const lastActivity = Math.max(workspace?.updatedAt ?? 0, sessions[0]?.updatedAt ?? 0, startedAt);
+  if (!cursorLaunched) {
+    discord.set(null);
+    await writeStatus({
+      paused: config.paused,
+      cursorOpen: false,
+      clientIdSet: !!config.clientId,
+      discordConnected: discord.connected,
+      discordError: discord.lastError,
+      activity: null,
+    });
+    return;
+  }
+
+  const anchor = cursorLaunched || startedAt;
+  const lastActivity = Math.max(workspace?.updatedAt ?? 0, sessions[0]?.updatedAt ?? 0, anchor);
   const busy = !!session && !TERMINAL.has(session.phase);
 
   const snapshot: Snapshot = {
@@ -130,7 +144,7 @@ async function refresh(): Promise<void> {
     workspace,
     codeChars: null,
     idle: !busy && now - lastActivity > config.idleMinutes * 60_000,
-    since: cursorLaunched || startedAt,
+    since: anchor,
     now,
   };
   const root = projectRoot(snapshot);
@@ -142,6 +156,7 @@ async function refresh(): Promise<void> {
 
   await writeStatus({
     paused: config.paused,
+    cursorOpen: true,
     clientIdSet: !!config.clientId,
     discordConnected: discord.connected,
     discordError: discord.lastError,
@@ -178,16 +193,23 @@ function onMessage(line: string): void {
 }
 
 async function checkCursor(): Promise<void> {
-  if (await isCursorRunning()) {
+  if (shuttingDown) return;
+  const running = await isCursorRunning();
+  if (running === null) {
+    // tasklist failed; leaving the card alone is safer than clearing it.
+  } else if (running) {
     cursorMisses = 0;
     if (!cursorLaunched) {
       cursorLaunched = (await cursorLaunchedAt()) ?? Date.now();
       log(`Cursor is running (launched ${new Date(cursorLaunched).toISOString()})`);
       scheduleRefresh(0);
     }
-  } else if (++cursorMisses >= 2) {
-    await shutdown("Cursor closed");
-    return;
+  } else if (cursorLaunched && ++cursorMisses >= 2) {
+    log("Cursor closed; presence cleared until it opens again");
+    cursorLaunched = 0;
+    cursorMisses = 0;
+    shown = null;
+    scheduleRefresh(0);
   }
   setTimeout(() => void checkCursor(), CURSOR_CHECK_MS);
 }

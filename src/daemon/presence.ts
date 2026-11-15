@@ -107,8 +107,15 @@ export function buildActivity(s: Snapshot): SetActivity | null {
     };
   } else {
     if (s.idle && config.idleAction === "clear") return null;
-    // Nothing happening: the logo alone, still counting time in Cursor.
-    return { ...base, largeImageKey: image(config, "lg", "cursor"), startTimestamp: s.since || undefined };
+    // Discord hides a card that has no text. Keep one on screen from the moment Cursor
+    // opens, and leave it there while you're away so it doesn't look like it died.
+    a = {
+      ...base,
+      details: s.idle ? "Idle in Cursor" : "In Cursor",
+      largeImageKey: image(config, "lg", "cursor"),
+      largeImageText: "Cursor",
+      startTimestamp: s.since || undefined,
+    };
   }
 
   for (const key of ["details", "state", "largeImageText", "smallImageText"] as const) {
